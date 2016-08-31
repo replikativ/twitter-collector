@@ -14,7 +14,7 @@ You need to supply your own credentials in a file `credentials.edn`.
 ~~~
 
 ~~~bash
-lein run /tmp/twitter-store-location
+lein run /tmp/twitter-store-location topic1 topic2 ...
 ~~~
 
 You can connect from client peers and sync the datatype while the server is running.
