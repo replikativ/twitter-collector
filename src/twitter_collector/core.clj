@@ -35,7 +35,7 @@
          tweet-txs [['add-tweets tweets]]]
      (when-not (empty? tweets)
        (<? (cs/transact! stage [user cdvcs-id] tweet-txs))
-       (when (< (rand) 1.0)
+       (when (< (rand) 0.01)
          (println "Date: " (java.util.Date.))
          (println "Pending: " (count (second @pending)))
          (println "Time taken: " (- (.getTime (java.util.Date.))
