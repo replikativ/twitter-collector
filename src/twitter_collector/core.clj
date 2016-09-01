@@ -12,11 +12,10 @@
              [stage :refer [connect! create-stage!]]]
             [replikativ.crdt.simple-gset.stage :as gs]
             [replikativ.crdt.cdvcs.stage :as cs]
-            [replikativ.stage :as s]))
+            [replikativ.stage :as s]
+            [taoensso.timbre :as timbre]
+            [full.async :refer [go-try <?]]))
 
-
-(require '[taoensso.timbre :as timbre])
-(require '[full.async :refer [go-try <?]])
 
 (timbre/set-level! :info)
 
@@ -70,7 +69,7 @@
          (fn [e]
            (println "Restarting stream due to:" e)
            (stop-stream)
-           (go-try (<? (timeout (* 10 1000)))
+           (go-try (<? (timeout (* 60 1000)))
                    (start-filter-stream))))))
     (start-filter-stream)
     ;; HACK block main thread
@@ -83,20 +82,10 @@
   (-main "/tmp/twitter/" "bitcoin")
 
   (count (second @pending))
-
-  (def client-store (<?? (new-fs-store "/media/void/1e843516-40ec-4b2b-83d2-c796ee312a59/twitter/")))
-
-  (def client (<?? (client-peer client-store)))
-
-  (def client-stage (<?? (create-stage! user client)))
-  (<?? (cs/create-cdvcs! client-stage :id cdvcs-id))
-
   (<?? (cs/merge! client-stage [user cdvcs-id]
                   (seq (get-in @client-stage [user cdvcs-id :state :heads]))))
 
   (<?? (connect! client-stage "ws://127.0.0.1:9095"))
-
-  (<?? (connect! client-stage "ws://topiq.es:9095"))
 
   (file-seq (clojure.java.io/file "/var/tmp/sstb"))
 
@@ -132,8 +121,7 @@
 
   (count (get-in @stage [user cdvcs-id :state :commit-graph]))
 
-  (require '[replikativ.crdt.cdvcs.realize :as r]
-           '[replikativ.realize :as real])
+  
 
   (def hist
     (r/commit-history (get-in @client-stage [user cdvcs-id :state :commit-graph])
@@ -173,13 +161,12 @@
          (map :text)
          ))
 
-  (def tweets (atom []))
 
   (count @tweets)
 
-  (take 10 @tweets)
+  (take-last 10 @tweets)
 
-  (take 10 (filter (fn [s] (re-find #"idiot" s)) @tweets))
+  (count (filter (fn [s] (re-find #"racist" s)) @tweets))
 
 
   (def realize-it
