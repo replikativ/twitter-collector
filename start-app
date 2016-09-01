@@ -1,0 +1,5 @@
+#!/bin/bash
+cd /twitter-collector; 
+
+lein run /data/twitter-store trump > /var/log/collector.log
+#java -Xmx256m -jar target/topiq-standalone.jar /opt/server-config.edn > /var/log/topiq.log
