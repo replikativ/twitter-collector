@@ -16,7 +16,6 @@
             [taoensso.timbre :as timbre]
             [full.async :refer [go-try <?]]))
 
-
 (timbre/set-level! :info)
 
 (def user "mail:twitter@crawler.com") ;; will be used to authenticate you (not yet)
@@ -188,6 +187,21 @@
   (stop peer-a)
   (stop-stream)
 
+
+  (def error (read-string (slurp "/usr/src/replikativ/error.edn")))
+
+  (keys error)
+
+  (def commit-graph (:commit-graph (:state error)))
+  (map (fn [e] (commit-graph e)) (:heads error))
+  (def heads(:heads error))
+
+  (require '[replikativ.crdt.cdvcs.meta :as meta])
+
+  (def lcas (:lcas (meta/lowest-common-ancestors commit-graph #{(first heads)}
+                                                 commit-graph #{(second heads)})))
+
+  (commit-graph (first lcas))
 
 
   )
