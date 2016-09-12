@@ -67,6 +67,7 @@
                                              ;; not tested yet
                                              :reset-fn (fn [old-conn] (prn "Resetting Datomic!")
                                                          (d/delete-database db-uri)
+                                                         (d/create-database db-uri)
                                                          (def conn (d/connect db-uri))
                                                          @(d/transact conn (read-string (slurp "schema.edn")))
                                                          conn)))
