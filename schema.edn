@@ -1,0 +1,14 @@
+[
+ {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/text
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db/doc "Text of the tweet."
+  :db.install/_attribute :db.part/db}
+ {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/author
+  :db/valueType :db.type/string
+  :db/cardinality :db.cardinality/one
+  :db/doc "Author of the tweet."
+  :db.install/_attribute :db.part/db}
+ ]
