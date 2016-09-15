@@ -36,6 +36,7 @@
        (when (< (rand) 0.01)
          (println "Date: " (java.util.Date.))
          (println "Pending: " (count (second @pending)))
+         (println "Commit count:" (count (get-in @stage [user cdvcs-id :state :commit-graph])))
          (println "Time taken: " (- (.getTime (java.util.Date.))
                                     st) " ms")
          (println "Transaction count: " (count tweet-txs))

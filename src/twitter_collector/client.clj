@@ -15,11 +15,9 @@
 
 ;; replikativ
 
-;; better not to use a memory store with gib of data ;)
-(def client-store (<?? (new-fs-store "/tmp/foo"
-                                     #_"/media/void/1e843516-40ec-4b2b-83d2-c796ee312a59/twitter/")))
+(def client-store (<?? (new-fs-store "/media/void/232f2140-1c56-478d-a17d-c65ea5325c00/twitter")))
 
-(def client (<?? (client-peer client-store)))
+(def client (<?? (client-peer client-store :middleware fetch)))
 
 (def client-stage (<?? (create-stage! user client)))
 (<?? (cs/create-cdvcs! client-stage :id cdvcs-id))
