@@ -1,14 +1,41 @@
 [
  {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/id
+  :db/valueType :db.type/long
+  :db/cardinality :db.cardinality/one
+  :db/doc "Twitter id of the tweet."
+  :db.install/_attribute :db.part/db}
+ {:db/id #db/id[:db.part/db]
   :db/ident :tweet/text
   :db/valueType :db.type/string
   :db/cardinality :db.cardinality/one
   :db/doc "Text of the tweet."
   :db.install/_attribute :db.part/db}
  {:db/id #db/id[:db.part/db]
-  :db/ident :tweet/author
+  :db/ident :tweet/screenname
   :db/valueType :db.type/string
   :db/cardinality :db.cardinality/one
   :db/doc "Author of the tweet."
+  :db.install/_attribute :db.part/db}
+ {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/ts
+  :db/valueType :db.type/instant
+  :db/cardinality :db.cardinality/one
+  :db/doc "Timestamp of the tweet."
+  :db.install/_attribute :db.part/db}
+ {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/retweeted?
+  :db/valueType :db.type/boolean
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db}
+ {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/retweet-count
+  :db/valueType :db.type/long
+  :db/cardinality :db.cardinality/one
+  :db.install/_attribute :db.part/db}
+ {:db/id #db/id[:db.part/db]
+  :db/ident :tweet/favourite-count
+  :db/valueType :db.type/long
+  :db/cardinality :db.cardinality/one
   :db.install/_attribute :db.part/db}
  ]
