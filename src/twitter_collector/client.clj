@@ -22,7 +22,7 @@
 (def client-stage (<?? (create-stage! user client)))
 (<?? (cs/create-cdvcs! client-stage :id cdvcs-id))
 
-;; in memory
+;; simple in-memory analysis
 
 (def tweets (atom []))
 
@@ -40,12 +40,16 @@
 
 ;; streaming into datomic
 
-(def db-uri "datomic:mem://trail")
+#_(def db-uri "datomic:mem://trail")
 
-(d/create-database db-uri)
+(def db-uri "datomic:free://localhost:4334/tweets")
+
 
 (comment
-  (d/delete-database "datomic:mem://trail"))
+  (d/create-database db-uri)
+
+  (d/delete-database db-uri))
+
 
 (def conn (d/connect db-uri))
 
@@ -112,7 +116,7 @@
   (async/close! atom-stream)
 
   ;; datomic analysis
-  (d/q '[:find ?t
+  (d/q '[:find (count ?t)
          :where
          [?tw :tweet/text ?t]]
        (d/db conn))
@@ -125,7 +129,7 @@
   (<?? (k/assoc-in client-store [:datomic-analysis] nil)) ;; reset log
   (<?? (k/log client-store :datomic-analysis))
 
-  (d/q '[:find ?u
+  (d/q '[:find (count ?u)
          :where
          [?t :tweet/screenname ?u]]
        (d/db conn))
