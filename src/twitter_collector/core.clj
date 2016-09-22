@@ -2,7 +2,6 @@
   (:gen-class true)
   (:require [gezwitscher.core :refer [stream]]
             [clojure.core.async :refer [chan timeout]]
-            [full.async :refer [<?? go-loop-try]]
             [kabel.http-kit :refer [start stop]]
             [konserve
              [filestore :refer [new-fs-store delete-store]]
@@ -10,11 +9,10 @@
             [replikativ
              [peer :refer [server-peer client-peer]]
              [stage :refer [connect! create-stage!]]]
-            [replikativ.crdt.simple-gset.stage :as gs]
             [replikativ.crdt.cdvcs.stage :as cs]
             [replikativ.stage :as s]
             [taoensso.timbre :as timbre]
-            [full.async :refer [go-try <?]]))
+            [full.async :refer [go-try <? <?? go-loop-try]]))
 
 (timbre/set-level! :info)
 
@@ -33,7 +31,7 @@
          tweet-txs [['add-tweets tweets]]]
      (when-not (empty? tweets)
        (<? (cs/transact! stage [user cdvcs-id] tweet-txs))
-       (when (< (rand) 0.01)
+       (when (< (rand) 0.05)
          (println "Date: " (java.util.Date.))
          (println "Pending: " (count (second @pending)))
          (println "Commit count:" (count (get-in @stage [user cdvcs-id :state :commit-graph])))
@@ -56,7 +54,7 @@
         c (chan)]
     (go-loop-try []
                  (<? (store-tweets stage pending))
-                 (<? (timeout 1000))
+                 (<? (timeout 60000))
                  (recur))
     ;; we def things here, so we can independently stop and start the stream from the REPL
     (defn start-filter-stream []
@@ -69,7 +67,8 @@
          (fn [e]
            (println "Restarting stream due to:" e)
            (stop-stream)
-           (go-try (<? (timeout (* 60 1000)))
+           (println "Waiting 15 minutes for rate limit.")
+           (go-try (<? (timeout (* 15 60 1000)))
                    (start-filter-stream))))))
     (start-filter-stream)
     ;; HACK block main thread

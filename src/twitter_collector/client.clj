@@ -13,8 +13,11 @@
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
-;; replikativ
 
+(comment
+  (require '[konserve.carmine :refer [new-carmine-store]]))
+
+;; replikativ
 (def client-store (<?? (new-fs-store "/media/void/232f2140-1c56-478d-a17d-c65ea5325c00/twitter")))
 
 (def client (<?? (client-peer client-store :middleware fetch)))
@@ -48,12 +51,13 @@
 (comment
   (d/create-database db-uri)
 
+  @(d/transact conn (read-string (slurp "schema.edn")))
+
   (d/delete-database db-uri))
 
 
 (def conn (d/connect db-uri))
 
-@(d/transact conn (read-string (slurp "schema.edn")))
 
 (defn tweet-txs [txs]
   (mapv (fn [{:keys [id text timestamp_ms user
@@ -121,6 +125,10 @@
          [?tw :tweet/text ?t]]
        (d/db conn))
 
+  (require '[incanter.core :refer :all]
+           '[incanter.charts :refer :all])
+
+
   ;; test tweets
   (<?? (cs/transact! client-stage [user cdvcs-id] [['add-tweets [{:text "Foo bar"}]]
                                                    ['add-tweets [{:text "More foo"}]]]))
@@ -129,10 +137,39 @@
   (<?? (k/assoc-in client-store [:datomic-analysis] nil)) ;; reset log
   (<?? (k/log client-store :datomic-analysis))
 
-  (d/q '[:find (count ?u)
-         :where
-         [?t :tweet/screenname ?u]]
-       (d/db conn))
+  ;; most active accounts
+  (let [res (->> (d/q '[:find ?u (count ?t)
+                       :where
+                       [?t :tweet/screenname ?u]]
+                      (d/db conn))
+                 (sort-by second)
+                 reverse
+                 (take 5))
+        c (count res)
+        screenname (map first res)
+        tweet-count (map second res)]
+    (view (bar-chart screenname tweet-count)))
+
+
+  (->> (d/q '[:find ?txt ?fav-count
+             :where
+             [?t :tweet/text ?txt]
+             [?t :tweet/favourite-count ?fav-count]]
+            (d/db conn))
+       (sort-by second)
+       reverse
+       (take 10))
+
+  (->> (d/q '[:find ?txt
+              :in $
+              :where
+              [(fulltext $ :tweet/text "Anthony")
+               [[?entity ?name ?tx ?score]]]
+              [?entity :tweet/text ?txt]]
+            (d/db conn))
+       (take 10))
+
+
 
   )
 (comment
