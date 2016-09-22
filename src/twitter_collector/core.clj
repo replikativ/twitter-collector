@@ -28,7 +28,7 @@
   (go-try
    (let [st (.getTime (java.util.Date.))
          tweets (vec (first (swap! pending (fn [[prev cur]] [cur '()]))))
-         tweet-txs [['add-tweets tweets]]]
+         tweet-txs (mapv (fn [t] ['add-tweet t]) tweets)]
      (when-not (empty? tweets)
        (<? (cs/transact! stage [user cdvcs-id] tweet-txs))
        (when (< (rand) 0.05)
