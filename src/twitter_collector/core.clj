@@ -86,22 +86,6 @@
 
   (<?? (connect! client-stage "ws://127.0.0.1:9095"))
 
-  (file-seq (clojure.java.io/file "/var/tmp/sstb"))
-
-  (defn list-dir [path]
-    (->>
-     (for [fn (.list (clojure.java.io/file path))
-           :let [afn (str path "/" fn)]]
-       (if (.isDirectory (clojure.java.io/file afn))
-         [fn (list-dir afn)]
-         [fn (java.util.Date. (.toMillis (Files/getLastModifiedTime (. (clojure.java.io/file afn) toPath) (into-array LinkOption []))))]))
-     (into {})))
-
-  (list-dir "/var/tmp/sstb/")
-
-
-  (import '[java.nio.file Files LinkOption])
-
 
 
   (type (. (clojure.java.io/file "/var/tmp/sstb/") toPath))
@@ -120,7 +104,6 @@
 
   (count (get-in @stage [user cdvcs-id :state :commit-graph]))
 
-  
 
   (def hist
     (r/commit-history (get-in @client-stage [user cdvcs-id :state :commit-graph])

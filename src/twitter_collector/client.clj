@@ -5,7 +5,8 @@
             [replikativ.p2p.fetch :refer [fetch]]
             [replikativ.stage :refer [create-stage! connect!]]
             [replikativ.crdt.cdvcs.stage :as cs]
-            [konserve.filestore :refer [new-fs-store]]
+            #_[konserve.filestore :refer [new-fs-store]]
+            [konserve-leveldb.core :refer [new-leveldb-store]]
             [clojure.core.async :as async]
             [full.async :refer [<??]]
             [replikativ.stage :as s]
@@ -13,14 +14,14 @@
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
-
-(comment
-  (require '[konserve.carmine :refer [new-carmine-store]]))
-
 ;; replikativ
-(def client-store (<?? (new-fs-store "/media/void/232f2140-1c56-478d-a17d-c65ea5325c00/twitter")))
+(def client-store (<?? #_(new-fs-store "/media/void/6787960d-d2c1-46fd-9db2-1d89417a68a6/twitter")
+                       (new-leveldb-store "/media/void/6787960d-d2c1-46fd-9db2-1d89417a68a6/twitter-level")))
 
 (def client (<?? (client-peer client-store :middleware fetch)))
+
+(comment
+  (stop client))
 
 (def client-stage (<?? (create-stage! user client)))
 (<?? (cs/create-cdvcs! client-stage :id cdvcs-id))
@@ -33,7 +34,10 @@
                                           {'add-tweets (fn [old txs]
                                                          ;; doall is here to free the txs memory as we go
                                                          (swap! old into (doall (map :text txs)))
-                                                         old)}
+                                                         old)
+                                           'add-tweet (fn [old t]
+                                                        (swap! old into [(:text t)])
+                                                        old)}
                                           tweets))
 
 
@@ -59,32 +63,37 @@
 (def conn (d/connect db-uri))
 
 
-(defn tweet-txs [txs]
-  (mapv (fn [{:keys [id text timestamp_ms user
-                     retweet_count favorite_count] :as tw}]
-          (when (< (rand) 0.001)
-            (prn "TWEET:" tw))
-          {:db/id (d/tempid :db.part/user)
-           :tweet/id id
-           :tweet/text text
-           :tweet/ts (java.util.Date. (Long/parseLong timestamp_ms))
-           :tweet/screenname (:screen_name user)
-           :tweet/favourite-count favorite_count
-           :tweet/retweet-count retweet_count})
-        txs))
+(defn tweet-tx [{:keys [id text timestamp_ms user
+                        retweet_count favorite_count] :as tw}]
+  (when (< (rand) 0.001)
+    (prn "TWEET:" tw))
+  {:db/id (d/tempid :db.part/user)
+   :tweet/id id
+   :tweet/text text
+   :tweet/ts (java.util.Date. (Long/parseLong timestamp_ms))
+   :tweet/screenname (:screen_name user)
+   :tweet/favourite-count favorite_count
+   :tweet/retweet-count retweet_count})
 
 
 (def datomic-stream (r/stream-into-identity! client-stage
                                              [user cdvcs-id]
                                              {'add-tweets (fn [conn txs]
-                                                            (let [twts (tweet-txs txs)]
+                                                            (let [twts (mapv tweet-tx txs)]
                                                               (try
                                                                 @(d/transact conn twts)
                                                                 (catch Exception e
                                                                   (throw (ex-info "Transacting tweets failed."
                                                                                   {:tweets twts
                                                                                    :error e})))))
-                                                            conn)}
+                                                            conn)
+                                              'add-tweet (fn [conn twt]
+                                                           (try
+                                                             @(d/transact conn [(tweet-tx twt)])
+                                                             (catch Exception e
+                                                               (throw (ex-info "Transacting tweet failed."
+                                                                               {:tweets twt
+                                                                                :error e})))))}
                                              conn
                                              :applied-log :datomic-analysis
                                              ;; not tested yet
