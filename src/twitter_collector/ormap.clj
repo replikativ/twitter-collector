@@ -9,7 +9,7 @@
             [konserve.filestore :refer [new-fs-store]]
             [konserve.memory :refer [new-mem-store]]
             [clojure.core.async :as async]
-            [full.async :refer [<??]]
+            [superv.async :refer [<?? S]]
             [replikativ.stage :as s]
             [konserve.core :as k]
             [replikativ.crdt.cdvcs.stage :as cs]
@@ -20,19 +20,19 @@
 
 
 ;; better not to use a memory store with gib of data ;)
-(def client-store (<?? (new-mem-store)
+(def client-store (<?? S (new-mem-store)
                        #_(new-fs-store "/tmp/foo"
                                      #_"/media/void/1e843516-40ec-4b2b-83d2-c796ee312a59/twitter/")))
 
-(def client (<?? (client-peer client-store)))
+(def client (<?? S (client-peer S client-store)))
 
-(def client-stage (<?? (create-stage! user client)))
+(def client-stage (<?? S (create-stage! user client)))
 
 #_(<?? (cs/create-cdvcs! client-stage :id cdvcs-id))
 
 (def ormap-id #uuid "dd43955b-c5c8-4163-95a3-97c0ca82fdf9")
 
-(<?? (ors/create-ormap! client-stage :id ormap-id))
+(<?? S (ors/create-ormap! client-stage :id ormap-id))
 
 ;; in memory
 
@@ -53,11 +53,11 @@
 
 (time
  (doseq [i (range 10000)]
-   (<?? (ors/assoc! client-stage [user ormap-id] i [['+ i]]))))
+   (<?? S (ors/assoc! client-stage [user ormap-id] i [['+ i]]))))
 
 (time
  (doseq [i (range 10000)]
-   (<?? (ors/dissoc! client-stage [user ormap-id] i [['- i]]))))
+   (<?? S (ors/dissoc! client-stage [user ormap-id] i [['- i]]))))
 
 
 

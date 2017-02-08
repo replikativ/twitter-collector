@@ -1,8 +1,8 @@
 (ns twitter-collector.core
-  (:gen-class true)
+  (:gen-class)
   (:require [gezwitscher.core :refer [stream]]
             [clojure.core.async :refer [chan timeout]]
-            [kabel.http-kit :refer [start stop]]
+            [kabel.peer :refer [start stop]]
             [konserve
              [filestore :refer [new-fs-store delete-store]]
              [memory :refer [new-mem-store]]]
@@ -11,10 +11,11 @@
              [stage :refer [connect! create-stage!]]]
             [replikativ.crdt.cdvcs.stage :as cs]
             [replikativ.stage :as s]
-            [taoensso.timbre :as timbre]
-            [full.async :refer [go-try <? <?? go-loop-try]]))
+            #_[taoensso.timbre :as timbre]
+            [superv.async :refer [go-try <? <?? go-loop-try S]]
+            [konserve.core :as k]))
 
-(timbre/set-level! :info)
+#_(timbre/set-level! :warn)
 
 (def user "mail:twitter@crawler.com") ;; will be used to authenticate you (not yet)
 
@@ -25,12 +26,13 @@
   (swap! pending (fn [[prev cur] status] [prev (conj cur status)]) status))
 
 (defn store-tweets [stage pending]
-  (go-try
+  (go-try S
    (let [st (.getTime (java.util.Date.))
          tweets (vec (first (swap! pending (fn [[prev cur]] [cur '()]))))
          tweet-txs (mapv (fn [t] ['add-tweet t]) tweets)]
      (when-not (empty? tweets)
-       (<? (cs/transact! stage [user cdvcs-id] tweet-txs))
+       (<? S (cs/transact! stage [user cdvcs-id] tweet-txs))
+       ;; print a bit of stats from time to time
        (when (< (rand) 0.05)
          (println "Date: " (java.util.Date.))
          (println "Pending: " (count (second @pending)))
@@ -44,21 +46,21 @@
   #_(delete-store store-path)
   (println "Tracking topics:" topics)
   ;; defing here for simple API access on the REPL, use Stuart Sierras component in larger systems
-  (let [_ (def store (<?? (new-fs-store store-path)))
-        _ (def peer (<?? (server-peer store "ws://127.0.0.1:9095")))
+  (let [_ (def store (<?? S (new-fs-store store-path)))
+        _ (def peer (<?? S (server-peer S store "ws://127.0.0.1:9095")))
         ;; TODO use a queue
         _ (def pending (atom ['() '()]))
         _ (start peer)
-        _ (def stage (<?? (create-stage! user peer)))
-        _ (<?? (cs/create-cdvcs! stage :id cdvcs-id))
+        _ (def stage (<?? S (create-stage! user peer)))
+        _ (<?? S (cs/create-cdvcs! stage :id cdvcs-id))
         c (chan)]
-    (go-loop-try []
-                 (<? (store-tweets stage pending))
-                 (<? (timeout 60000))
+    (go-loop-try S []
+                 (<? S (store-tweets stage pending))
+                 (<? S (timeout 60000))
                  (recur))
     ;; we def things here, so we can independently stop and start the stream from the REPL
     (defn start-filter-stream []
-      (def stop-stream
+      (def twitter-stream
         (stream
          (read-string (slurp "credentials.edn"))
          []
@@ -66,19 +68,37 @@
          (partial new-tweet pending)
          (fn [e]
            (println "Restarting stream due to:" e)
-           (stop-stream)
+           (twitter-stream)
            (println "Waiting 15 minutes for rate limit.")
-           (go-try (<? (timeout (* 15 60 1000)))
+           (go-try S (<? S (timeout (* 15 60 1000)))
                    (start-filter-stream))))))
     (start-filter-stream)
     ;; HACK block main thread
-    (<?? c)))
+    (<?? S c)))
 
 
 
 (comment
+  (require '[konserve.serializers :as ser] :verbose)
+
+  (import '[konserve.serializers FressianSerializer])
+
+  (use 'konserve.serializers)
 
   (-main "/tmp/twitter/" "bitcoin")
+
+  (def foo (<?? S (new-mem-store)))
+
+
+  (<?? S (k/assoc-in foo [:foo] :bar))
+
+  (<?? S (k/get-in foo [:foo]))
+
+  (def test-store (<?? S (new-fs-store "/tmp/bar")))
+
+  (<?? S (k/get-in test-store [:foo]))
+
+  (<?? S (k/assoc-in test-store [:foo] :bar))
 
   (count (second @pending))
   (<?? (cs/merge! client-stage [user cdvcs-id]

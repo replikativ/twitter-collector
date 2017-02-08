@@ -5,26 +5,26 @@
             [replikativ.p2p.fetch :refer [fetch]]
             [replikativ.stage :refer [create-stage! connect!]]
             [replikativ.crdt.cdvcs.stage :as cs]
-            #_[konserve.filestore :refer [new-fs-store]]
-            [konserve-leveldb.core :refer [new-leveldb-store]]
+            [konserve.filestore :refer [new-fs-store]]
+            #_[konserve-leveldb.core :refer [new-leveldb-store]]
             [clojure.core.async :as async]
-            [full.async :refer [<??]]
+            [superv.async :refer [<?? S]]
             [replikativ.stage :as s]
             [konserve.core :as k]
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
 ;; replikativ
-(def client-store (<?? #_(new-fs-store "/media/void/6787960d-d2c1-46fd-9db2-1d89417a68a6/twitter")
-                       (new-leveldb-store "/media/void/6787960d-d2c1-46fd-9db2-1d89417a68a6/twitter-level")))
+(def client-store (<?? S (new-fs-store "/home/christian//twitter")))
 
-(def client (<?? (client-peer client-store :middleware fetch)))
+
+(def client (<?? S (client-peer S client-store :middleware fetch)))
 
 (comment
   (stop client))
 
-(def client-stage (<?? (create-stage! user client)))
-(<?? (cs/create-cdvcs! client-stage :id cdvcs-id))
+(def client-stage (<?? S (create-stage! user client)))
+(<?? S (cs/create-cdvcs! client-stage :id cdvcs-id))
 
 ;; simple in-memory analysis
 
@@ -93,7 +93,8 @@
                                                              (catch Exception e
                                                                (throw (ex-info "Transacting tweet failed."
                                                                                {:tweets twt
-                                                                                :error e})))))}
+                                                                                :error e}))))
+                                                           conn)}
                                              conn
                                              :applied-log :datomic-analysis
                                              ;; not tested yet
@@ -111,9 +112,9 @@
 
 (comment
   ;; test server, might be broken
-  (<?? (connect! client-stage "ws://topiq.es:9095"))
+  (<?? S (connect! client-stage "ws://topiq.es:9095"))
 
-  (<?? (k/get-in client-store [(last (<?? (k/get-in client-store [[user cdvcs-id :log]])))]))
+  (<?? S (k/get-in client-store [(last (<?? S (k/get-in client-store [[user cdvcs-id :log]])))]))
 
   (let [{{new-heads :heads
           new-commit-graph :commit-graph} :op :as op} {:heads [1 2 3]}]
