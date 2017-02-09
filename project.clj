@@ -6,7 +6,6 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
 
                  [io.replikativ/gezwitscher "0.2.0-SNAPSHOT"]
-                 [io.replikativ/konserve "0.4.9-SNAPSHOT"]
                  [io.replikativ/replikativ "0.2.1"]
                  [employeerepublic/slf4j-timbre "0.4.2"]
                  [com.datomic/datomic-free "0.9.5554"

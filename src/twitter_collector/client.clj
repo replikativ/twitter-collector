@@ -115,7 +115,7 @@
 
 (comment
   ;; test server, might be broken
-  (<?? S (connect! client-stage "ws://127.0.0.1:9095"))
+  (<?? S (connect! client-stage "ws://topiq.es:9095"))
 
   (<?? S (k/get-in client-store [(last (<?? S (k/get-in client-store [[user cdvcs-id :log]])))]))
 
