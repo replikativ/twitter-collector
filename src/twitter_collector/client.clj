@@ -14,7 +14,14 @@
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
-(timbre/set-level! :info)
+(timbre/set-level! :warn)
+
+(comment
+  ;; causes NPE in slf4j (?)
+  (timbre/merge-config! {:ns-whitelist ["replikativ.*"]})
+
+  )
+
 
 ;; replikativ
 (def client-store (<?? S (new-fs-store "/home/christian/twitter")))
@@ -129,7 +136,7 @@
   ;; simple live analysis
   (take-last 10 @tweets)
 
-  (count (filter (fn [s] (re-find #"racist" s)) @tweets))
+  (count (filter (fn [s] (re-find #"america first" s)) @tweets))
 
   (async/close! atom-stream)
 
