@@ -3,14 +3,14 @@
   :url "https://github.com/replikativ/twitter-collector"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.9.0-alpha14"]
+  :dependencies [[org.clojure/clojure "1.8.0"]
 
                  [io.replikativ/gezwitscher "0.2.0-SNAPSHOT"]
-                 [io.replikativ/konserve "0.4.8"]
+                 [io.replikativ/konserve "0.4.9-SNAPSHOT"]
                  [io.replikativ/replikativ "0.2.1"]
-                 #_[com.fzakaria/slf4j-timbre "0.3.2"]
-                 [com.datomic/datomic-free "0.9.5544"
-                  :exclusions [commons-codec org.fressian/fressian io.netty/netty-all]]
-                 #_[incanter "1.9.1"]]
+                 [employeerepublic/slf4j-timbre "0.4.2"]
+                 [com.datomic/datomic-free "0.9.5554"
+                  :exclusions [commons-codec]]
+                 [incanter "1.5.7"]]
 
   :main twitter-collector.core)

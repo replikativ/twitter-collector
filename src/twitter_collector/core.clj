@@ -1,5 +1,4 @@
 (ns twitter-collector.core
-  (:gen-class)
   (:require [gezwitscher.core :refer [stream]]
             [clojure.core.async :refer [chan timeout]]
             [kabel.peer :refer [start stop]]
@@ -11,11 +10,11 @@
              [stage :refer [connect! create-stage!]]]
             [replikativ.crdt.cdvcs.stage :as cs]
             [replikativ.stage :as s]
-            #_[taoensso.timbre :as timbre]
+            [taoensso.timbre :as timbre]
             [superv.async :refer [go-try <? <?? go-loop-try S]]
             [konserve.core :as k]))
 
-#_(timbre/set-level! :warn)
+(timbre/set-level! :warn)
 
 (def user "mail:twitter@crawler.com") ;; will be used to authenticate you (not yet)
 
@@ -56,7 +55,7 @@
         c (chan)]
     (go-loop-try S []
                  (<? S (store-tweets stage pending))
-                 (<? S (timeout 60000))
+                 (<? S (timeout 100))
                  (recur))
     ;; we def things here, so we can independently stop and start the stream from the REPL
     (defn start-filter-stream []

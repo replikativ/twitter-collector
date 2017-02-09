@@ -6,16 +6,18 @@
             [replikativ.stage :refer [create-stage! connect!]]
             [replikativ.crdt.cdvcs.stage :as cs]
             [konserve.filestore :refer [new-fs-store]]
-            #_[konserve-leveldb.core :refer [new-leveldb-store]]
             [clojure.core.async :as async]
             [superv.async :refer [<?? S]]
             [replikativ.stage :as s]
             [konserve.core :as k]
+            [taoensso.timbre :as timbre]
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
+(timbre/set-level! :info)
+
 ;; replikativ
-(def client-store (<?? S (new-fs-store "/home/christian//twitter")))
+(def client-store (<?? S (new-fs-store "/home/christian/twitter")))
 
 
 (def client (<?? S (client-peer S client-store :middleware fetch)))
@@ -98,7 +100,8 @@
                                              conn
                                              :applied-log :datomic-analysis
                                              ;; not tested yet
-                                             :reset-fn (fn [old-conn] (prn "Resetting Datomic!")
+                                             :reset-fn (fn [old-conn conflict]
+                                                         (prn "Resetting Datomic because of " conflict)
                                                          (d/delete-database db-uri)
                                                          (d/create-database db-uri)
                                                          (def conn (d/connect db-uri))
@@ -112,7 +115,7 @@
 
 (comment
   ;; test server, might be broken
-  (<?? S (connect! client-stage "ws://topiq.es:9095"))
+  (<?? S (connect! client-stage "ws://127.0.0.1:9095"))
 
   (<?? S (k/get-in client-store [(last (<?? S (k/get-in client-store [[user cdvcs-id :log]])))]))
 
@@ -121,6 +124,7 @@
     op)
 
   (count @tweets)
+
 
   ;; simple live analysis
   (take-last 10 @tweets)
@@ -139,7 +143,7 @@
            '[incanter.charts :refer :all])
 
 
-  ;; test tweets
+  ;; test tweets, do not induce this in cdvcs
   (<?? (cs/transact! client-stage [user cdvcs-id] [['add-tweets [{:text "Foo bar"}]]
                                                    ['add-tweets [{:text "More foo"}]]]))
 
@@ -173,7 +177,7 @@
   (->> (d/q '[:find ?txt
               :in $
               :where
-              [(fulltext $ :tweet/text "Anthony")
+              [(fulltext $ :tweet/text "ethereum")
                [[?entity ?name ?tx ?score]]]
               [?entity :tweet/text ?txt]]
             (d/db conn))
