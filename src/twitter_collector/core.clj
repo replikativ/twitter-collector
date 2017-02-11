@@ -5,6 +5,7 @@
             [konserve
              [filestore :refer [new-fs-store delete-store]]
              [memory :refer [new-mem-store]]]
+            [konserve-leveldb.core :refer [new-leveldb-store]]
             [replikativ
              [peer :refer [server-peer client-peer]]
              [stage :refer [connect! create-stage!]]]
@@ -45,7 +46,7 @@
   #_(delete-store store-path)
   (println "Tracking topics:" topics)
   ;; defing here for simple API access on the REPL, use Stuart Sierras component in larger systems
-  (let [_ (def store (<?? S (new-fs-store store-path)))
+  (let [_ (def store (<?? S (new-leveldb-store store-path)))
         _ (def peer (<?? S (server-peer S store "ws://127.0.0.1:9095")))
         ;; TODO use a queue
         _ (def pending (atom ['() '()]))
@@ -55,7 +56,7 @@
         c (chan)]
     (go-loop-try S []
                  (<? S (store-tweets stage pending))
-                 (<? S (timeout 100))
+                 (<? S (timeout (* 10 1000)))
                  (recur))
     ;; we def things here, so we can independently stop and start the stream from the REPL
     (defn start-filter-stream []

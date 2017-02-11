@@ -14,7 +14,7 @@
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
-(timbre/set-level! :warn)
+(timbre/set-level! :info)
 
 (comment
   ;; causes NPE in slf4j (?)
@@ -169,7 +169,7 @@
         c (count res)
         screenname (map first res)
         tweet-count (map second res)]
-    (view (bar-chart screenname tweet-count)))
+    (view (bar-chart screenname tweet-count))) 
 
 
   (->> (d/q '[:find ?txt ?fav-count
