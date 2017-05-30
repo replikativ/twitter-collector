@@ -7,7 +7,7 @@
 
                  [io.replikativ/gezwitscher "0.2.0-SNAPSHOT"]
                  [io.replikativ/konserve-leveldb "0.1.1"]
-                 [io.replikativ/replikativ "0.2.3"]
+                 [io.replikativ/replikativ "0.2.4-SNAPSHOT"]
                  [employeerepublic/slf4j-timbre "0.4.2"]
                  [com.datomic/datomic-free "0.9.5554"
                   :exclusions [commons-codec]]

@@ -16,8 +16,7 @@
             [konserve.core :as k]
             [taoensso.timbre :as timbre]
             [replikativ.crdt.cdvcs.stage :as cs]
-            [datomic.api :as d])
-  (:import [java.io ByteArrayInputStream]))
+            [datomic.api :as d]))
 
 (timbre/set-level! :warn)
 
@@ -91,13 +90,17 @@
 
 (def datomic-stream (r/stream-into-identity! client-stage
                                              [user cdvcs-id]
-                                             {'add-tweet (fn [conn twt]
-                                                           (try
-                                                             @(d/transact conn [(tweet-tx twt)])
-                                                             (catch Exception e
-                                                               (throw (ex-info "Transacting tweet failed."
-                                                                               {:tweets twt
-                                                                                :error e}))))
+                                             {'add-tweets (fn [conn id]
+                                                            (let [twts
+                                                                  (<?? S (k/bget client-store id
+                                                                                 #(-deserialize (fressian-serializer) (atom {})
+                                                                                                (:input-stream %)))) ]
+                                                              (try
+                                                                @(d/transact conn (mapv tweet-tx twts))
+                                                                (catch Exception e
+                                                                  (throw (ex-info "Transacting tweet failed."
+                                                                                  {:tweets twts
+                                                                                   :error e})))))
                                                            conn)}
                                              conn
                                              :applied-log :datomic-analysis
@@ -117,7 +120,7 @@
 
 (comment
   ;; test server, might be broken
-  (<?? S (connect! client-stage "ws://localhost:9095"))
+  (<?? S (connect! client-stage "ws://topiq.es:9095"))
 
   (<?? S (k/get-in client-store [(last (<?? S (k/get-in client-store [[user cdvcs-id :log]])))]))
 
