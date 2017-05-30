@@ -5,16 +5,21 @@
             [replikativ.p2p.fetch :refer [fetch]]
             [replikativ.stage :refer [create-stage! connect!]]
             [replikativ.crdt.cdvcs.stage :as cs]
+            [konserve.serializers :refer [fressian-serializer]]
+            [konserve.protocols :refer [-serialize
+                                        -deserialize]]
             [konserve.filestore :refer [new-fs-store]]
+            [konserve-leveldb.core :refer [new-leveldb-store]]
             [clojure.core.async :as async]
             [superv.async :refer [<?? S]]
             [replikativ.stage :as s]
             [konserve.core :as k]
             [taoensso.timbre :as timbre]
             [replikativ.crdt.cdvcs.stage :as cs]
-            [datomic.api :as d]))
+            [datomic.api :as d])
+  (:import [java.io ByteArrayInputStream]))
 
-(timbre/set-level! :info)
+(timbre/set-level! :warn)
 
 (comment
   ;; causes NPE in slf4j (?)
@@ -22,9 +27,8 @@
 
   )
 
-
 ;; replikativ
-(def client-store (<?? S (new-fs-store "/home/christian/twitter")))
+(def client-store (<?? S (new-leveldb-store "/tmp/client-twitter")))
 
 
 (def client (<?? S (client-peer S client-store :middleware fetch)))
@@ -40,12 +44,12 @@
 (def tweets (atom []))
 
 (def atom-stream (r/stream-into-identity! client-stage [user cdvcs-id]
-                                          {'add-tweets (fn [old txs]
-                                                         ;; doall is here to free the txs memory as we go
-                                                         (swap! old into (doall (map :text txs)))
-                                                         old)
-                                           'add-tweet (fn [old t]
-                                                        (swap! old into [(:text t)])
+                                          {'add-tweets (fn [old id]
+                                                         (let [tweets
+                                                               (<?? S (k/bget client-store id
+                                                                              #(-deserialize (fressian-serializer) (atom {})
+                                                                                             (:input-stream %))))]
+                                                           (swap! old into (map :text tweets)))
                                                         old)}
                                           tweets))
 
@@ -87,16 +91,7 @@
 
 (def datomic-stream (r/stream-into-identity! client-stage
                                              [user cdvcs-id]
-                                             {'add-tweets (fn [conn txs]
-                                                            (let [twts (mapv tweet-tx txs)]
-                                                              (try
-                                                                @(d/transact conn twts)
-                                                                (catch Exception e
-                                                                  (throw (ex-info "Transacting tweets failed."
-                                                                                  {:tweets twts
-                                                                                   :error e})))))
-                                                            conn)
-                                              'add-tweet (fn [conn twt]
+                                             {'add-tweet (fn [conn twt]
                                                            (try
                                                              @(d/transact conn [(tweet-tx twt)])
                                                              (catch Exception e
@@ -122,13 +117,12 @@
 
 (comment
   ;; test server, might be broken
-  (<?? S (connect! client-stage "ws://topiq.es:9095"))
+  (<?? S (connect! client-stage "ws://localhost:9095"))
 
   (<?? S (k/get-in client-store [(last (<?? S (k/get-in client-store [[user cdvcs-id :log]])))]))
 
-  (let [{{new-heads :heads
-          new-commit-graph :commit-graph} :op :as op} {:heads [1 2 3]}]
-    op)
+
+  ;; whitelist authors
 
   (count @tweets)
 
@@ -136,12 +130,12 @@
   ;; simple live analysis
   (take-last 10 @tweets)
 
-  (count (filter (fn [s] (re-find #"america first" s)) @tweets))
+  (count (filter (fn [s] (re-find #"ethereum" s)) @tweets))
 
-  (async/close! atom-stream)
+  (async/close! (:close-ch atom-stream))
 
   ;; datomic analysis
-  (d/q '[:find (count ?t)
+  (d/q '[:find (count ?tw) .
          :where
          [?tw :tweet/text ?t]]
        (d/db conn))
@@ -150,11 +144,12 @@
            '[incanter.charts :refer :all])
 
 
-  ;; test tweets, do not induce this in cdvcs
+  ;; test tweets, do not transact this in cdvcs when running against a concurrent
+  ;; collector or you might induce conflicts
   (<?? (cs/transact! client-stage [user cdvcs-id] [['add-tweets [{:text "Foo bar"}]]
                                                    ['add-tweets [{:text "More foo"}]]]))
 
-  (async/close! datomic-stream)
+  (async/close! (:close-ch datomic-stream))
   (<?? (k/assoc-in client-store [:datomic-analysis] nil)) ;; reset log
   (<?? (k/log client-store :datomic-analysis))
 

@@ -2,25 +2,46 @@
   (:require [gezwitscher.core :refer [stream]]
             [clojure.core.async :refer [chan timeout]]
             [kabel.peer :refer [start stop]]
+            [hasch.core :refer [uuid]]
+            [konserve.serializers :refer [fressian-serializer]]
+            [konserve.protocols :refer [-serialize
+                                        -deserialize]]
             [konserve
              [filestore :refer [new-fs-store delete-store]]
              [memory :refer [new-mem-store]]]
             [konserve-leveldb.core :refer [new-leveldb-store]]
             [replikativ
              [peer :refer [server-peer client-peer]]
-             [stage :refer [connect! create-stage!]]]
+             [stage :refer [connect! create-stage!]]
+             [environ :refer [store-blob-trans-value]]]
             [replikativ.crdt.cdvcs.stage :as cs]
             [replikativ.stage :as s]
             [taoensso.timbre :as timbre]
             [superv.async :refer [go-try <? <?? go-loop-try S]]
-            [konserve.core :as k]))
+            [konserve.core :as k])
+  (:import [java.io ByteArrayOutputStream]))
 
-(timbre/set-level! :warn)
+(timbre/set-level! :info)
+
+;; logger racing (???)
+(<?? S (timeout 500))
+
 
 (def user "mail:twitter@crawler.com") ;; will be used to authenticate you (not yet)
 
-(def cdvcs-id #uuid "12d49511-e733-4007-937b-460c3794fae9")
+(def cdvcs-id #uuid "f29ccbfa-12f6-4918-aaec-4b32f1a04e65"
+  ;; old non-binary was
+  #_#uuid "12d49514-e733-4007-937b-460c3794fae9")
 
+
+(defn- to-bytearray [v]
+  (let [boas (ByteArrayOutputStream.)]
+    (-serialize (fressian-serializer)
+                boas
+                (atom {}) v)
+    (.toByteArray boas)))
+
+;; tweet bot
 
 (defn new-tweet [pending status]
   (swap! pending (fn [[prev cur] status] [prev (conj cur status)]) status))
@@ -28,10 +49,13 @@
 (defn store-tweets [stage pending]
   (go-try S
    (let [st (.getTime (java.util.Date.))
-         tweets (vec (first (swap! pending (fn [[prev cur]] [cur '()]))))
-         tweet-txs (mapv (fn [t] ['add-tweet t]) tweets)]
+         tweets (vec (first (swap! pending (fn [[prev cur]] [cur '()]))))]
      (when-not (empty? tweets)
-       (<? S (cs/transact! stage [user cdvcs-id] tweet-txs))
+       (<? S (cs/transact! stage [user cdvcs-id]
+                           (let [tweet-blob (to-bytearray tweets)
+                                 id (uuid tweet-blob)]
+                             [[store-blob-trans-value tweet-blob]
+                              ['add-tweets id]])))
        ;; print a bit of stats from time to time
        (when (< (rand) 0.05)
          (println "Date: " (java.util.Date.))
@@ -39,7 +63,9 @@
          (println "Commit count:" (count (get-in @stage [user cdvcs-id :state :commit-graph])))
          (println "Time taken: " (- (.getTime (java.util.Date.))
                                     st) " ms")
-         (println "Transaction count: " (count tweet-txs))
+         (println "Free Memory: " (.freeMemory (Runtime/getRuntime))
+                  " of "
+                  (.totalMemory (Runtime/getRuntime)))
          (println "First tweet:" (first tweets)))))))
 
 (defn -main [store-path & topics]
@@ -48,7 +74,6 @@
   ;; defing here for simple API access on the REPL, use Stuart Sierras component in larger systems
   (let [_ (def store (<?? S (new-leveldb-store store-path)))
         _ (def peer (<?? S (server-peer S store "ws://127.0.0.1:9095")))
-        ;; TODO use a queue
         _ (def pending (atom ['() '()]))
         _ (start peer)
         _ (def stage (<?? S (create-stage! user peer)))
@@ -73,6 +98,7 @@
            (go-try S (<? S (timeout (* 15 60 1000)))
                    (start-filter-stream))))))
     (start-filter-stream)
+    (timbre/set-level! :info)
     ;; HACK block main thread
     (<?? S c)))
 
