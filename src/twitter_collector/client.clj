@@ -11,14 +11,15 @@
             [konserve.filestore :refer [new-fs-store]]
             [konserve-leveldb.core :refer [new-leveldb-store]]
             [clojure.core.async :as async]
-            [superv.async :refer [<?? S]]
+            [superv.async :refer [<?? S go-try <?]]
             [replikativ.stage :as s]
+            [replikativ-fressianize.core :refer [unfressianize]]
             [konserve.core :as k]
             [taoensso.timbre :as timbre]
             [replikativ.crdt.cdvcs.stage :as cs]
             [datomic.api :as d]))
 
-(timbre/set-level! :warn)
+(timbre/set-level! :info)
 
 (comment
   ;; causes NPE in slf4j (?)
@@ -42,17 +43,18 @@
 
 (def tweets (atom []))
 
-(def atom-stream (r/stream-into-identity! client-stage [user cdvcs-id]
-                                          {'add-tweets (fn [old id]
-                                                         (let [tweets
-                                                               (<?? S (k/bget client-store id
-                                                                              #(-deserialize (fressian-serializer) (atom {})
-                                                                                             (:input-stream %))))]
-                                                           (swap! old into (map :text tweets)))
-                                                        old)}
-                                          tweets))
+(def eval-fns
+  {'add-tweets (fn [S old id]
+                 (go-try S
+                   (let [tweets (<? S (unfressianize S client-store id))]
+                     (swap! old into (map :text tweets)))
+                   old))})
+
+(def atom-stream (r/stream-into-identity! client-stage [user cdvcs-id] eval-fns tweets))
 
 
+(comment
+  (async/close! (:close-ch atom-stream)))
 
 
 
@@ -88,30 +90,31 @@
    :tweet/retweet-count retweet_count})
 
 
-(def datomic-stream (r/stream-into-identity! client-stage
-                                             [user cdvcs-id]
-                                             {'add-tweets (fn [conn id]
-                                                            (let [twts
-                                                                  (<?? S (k/bget client-store id
-                                                                                 #(-deserialize (fressian-serializer) (atom {})
-                                                                                                (:input-stream %)))) ]
-                                                              (try
-                                                                @(d/transact conn (mapv tweet-tx twts))
-                                                                (catch Exception e
-                                                                  (throw (ex-info "Transacting tweet failed."
-                                                                                  {:tweets twts
-                                                                                   :error e})))))
-                                                           conn)}
-                                             conn
-                                             :applied-log :datomic-analysis
-                                             ;; not tested yet
-                                             :reset-fn (fn [old-conn conflict]
-                                                         (prn "Resetting Datomic because of " conflict)
-                                                         (d/delete-database db-uri)
-                                                         (d/create-database db-uri)
-                                                         (def conn (d/connect db-uri))
-                                                         @(d/transact conn (read-string (slurp "schema.edn")))
-                                                         conn)))
+(def datomic-eval-fns
+  {'add-tweets (fn [S conn id]
+                 (go-try S
+                   (let [twts (<? S (unfressianize S client-store id))]
+                     (try
+                       @(d/transact conn (mapv tweet-tx twts))
+                       (catch Exception e
+                         (throw (ex-info "Transacting tweet failed."
+                                         {:tweets twts
+                                          :error e}))))))
+                 conn)})
+
+
+(def datomic-stream
+  (r/stream-into-identity! client-stage [user cdvcs-id]
+                           datomic-eval-fns conn
+                           :applied-log :datomic-analysis
+                           ;; not tested yet
+                           :reset-fn (fn [old-conn conflict]
+                                       (prn "Resetting Datomic because of " conflict)
+                                       (d/delete-database db-uri)
+                                       (d/create-database db-uri)
+                                       (def conn (d/connect db-uri))
+                                       @(d/transact conn (read-string (slurp "schema.edn")))
+                                       conn)))
 
 
 
@@ -163,11 +166,11 @@
                       (d/db conn))
                  (sort-by second)
                  reverse
-                 (take 5))
+                 (take 10))
         c (count res)
         screenname (map first res)
         tweet-count (map second res)]
-    (view (bar-chart screenname tweet-count))) 
+    (view (bar-chart screenname tweet-count)))
 
 
   (->> (d/q '[:find ?txt ?fav-count

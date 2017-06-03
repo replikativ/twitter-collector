@@ -12,14 +12,13 @@
             [konserve-leveldb.core :refer [new-leveldb-store]]
             [replikativ
              [peer :refer [server-peer client-peer]]
-             [stage :refer [connect! create-stage!]]
-             [environ :refer [store-blob-trans-value]]]
+             [stage :refer [connect! create-stage!]]]
             [replikativ.crdt.cdvcs.stage :as cs]
             [replikativ.stage :as s]
+            [replikativ-fressianize.core :refer [fressianize]]
             [taoensso.timbre :as timbre]
             [superv.async :refer [go-try <? <?? go-loop-try S]]
-            [konserve.core :as k])
-  (:import [java.io ByteArrayOutputStream]))
+            [konserve.core :as k]))
 
 (timbre/set-level! :info)
 
@@ -34,17 +33,11 @@
   #_#uuid "12d49514-e733-4007-937b-460c3794fae9")
 
 
-(defn- to-bytearray [v]
-  (let [boas (ByteArrayOutputStream.)]
-    (-serialize (fressian-serializer)
-                boas
-                (atom {}) v)
-    (.toByteArray boas)))
-
 ;; tweet bot
 
 (defn new-tweet [pending status]
   (swap! pending (fn [[prev cur] status] [prev (conj cur status)]) status))
+
 
 (defn store-tweets [stage pending]
   (go-try S
@@ -52,10 +45,7 @@
          tweets (vec (first (swap! pending (fn [[prev cur]] [cur '()]))))]
      (when-not (empty? tweets)
        (<? S (cs/transact! stage [user cdvcs-id]
-                           (let [tweet-blob (to-bytearray tweets)
-                                 id (uuid tweet-blob)]
-                             [[store-blob-trans-value tweet-blob]
-                              ['add-tweets id]])))
+                           (fressianize [['add-tweets tweets]])))
        ;; print a bit of stats from time to time
        (when (< (rand) 0.05)
          (println "Date: " (java.util.Date.))
